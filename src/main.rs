@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 
 const TELEGRAM_TOKEN: &str = "8601242071:AAG2VEU5WSjRxVFwtn8N01eKPIrPDxpAmPU";
 const ADMIN_USER_ID: i64 = 8326724717;
-const CLAUDE_API_KEY: &str = "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";
+const CLAUDE_API_KEY: &str = "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";
 
 #[derive(Serialize)]
 struct ClaudeRequest {
