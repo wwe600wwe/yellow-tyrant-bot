@@ -6,35 +6,34 @@ use tokio::sync::Mutex;
 
 const TELEGRAM_TOKEN: &str = "8601242071:AAG2VEU5WSjRxVFwtn8N01eKPIrPDxpAmPU";
 const ADMIN_USER_ID: i64 = 8326724717;
-const CLAUDE_API_KEY: &str = "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";
 
 #[derive(Serialize)]
-struct ClaudeRequest {
+struct DeepSeekRequest {
     model: String,
-    max_tokens: u32,
-    messages: Vec<ClaudeMessage>,
+    messages: Vec<DeepSeekMessage>,
+    stream: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct ClaudeMessage {
+struct DeepSeekMessage {
     role: String,
     content: String,
 }
 
 #[derive(Deserialize)]
-struct ClaudeResponse {
-    content: Vec<ClaudeContent>,
+struct DeepSeekResponse {
+    choices: Vec<DeepSeekChoice>,
 }
 
 #[derive(Deserialize)]
-struct ClaudeContent {
-    text: String,
+struct DeepSeekChoice {
+    message: DeepSeekMessage,
 }
 
 #[tokio::main]
 async fn main() {
     let bot = Bot::new(TELEGRAM_TOKEN);
-    let history: Arc<Mutex<Vec<ClaudeMessage>>> = Arc::new(Mutex::new(Vec::new()));
+    let history: Arc<Mutex<Vec<DeepSeekMessage>>> = Arc::new(Mutex::new(Vec::new()));
 
     teloxide::repl(bot, move |bot: Bot, msg: Message| {
         let history = Arc::clone(&history);
@@ -48,7 +47,7 @@ async fn main() {
             let text = msg.text().unwrap_or("").to_string();
 
             if text == "/start" {
-                bot.send_message(msg.chat.id, "⚡ Yellow Tyrant جاهز. اكتب سؤالك مباشرة.").await?;
+                bot.send_message(msg.chat.id, "⚡ Yellow Tyrant جاهز (DeepSeek). اكتب سؤالك.").await?;
                 return Ok(());
             }
 
@@ -63,32 +62,32 @@ async fn main() {
 
             let client = Client::new();
             let mut messages = history.lock().await.clone();
-            messages.push(ClaudeMessage {
+            messages.push(DeepSeekMessage {
                 role: "user".to_string(),
                 content: text.clone(),
             });
 
-            let body = ClaudeRequest {
-                model: "claude-3-haiku-20240307".to_string(),
-                max_tokens: 2000,
+            let body = DeepSeekRequest {
+                model: "deepseek-chat".to_string(),
                 messages,
+                stream: false,
             };
 
             match client
-                .post("https://api.anthropic.com/v1/messages")
-                .header("x-api-key", CLAUDE_API_KEY)
-                .header("anthropic-version", "2023-06-01")
+                .post("https://api.deepseek.com/v1/chat/completions")
+                .header("Authorization", "Bearer sk-3709e5eab80d4b65a7a25632b95ad013")
+                .header("Content-Type", "application/json")
                 .json(&body)
                 .send()
                 .await
             {
                 Ok(resp) => {
-                    if let Ok(response) = resp.json::<ClaudeResponse>().await {
-                        if let Some(content) = response.content.first() {
-                            let answer = content.text.clone();
+                    if let Ok(response) = resp.json::<DeepSeekResponse>().await {
+                        if let Some(choice) = response.choices.first() {
+                            let answer = choice.message.content.clone();
                             let mut h = history.lock().await;
-                            h.push(ClaudeMessage { role: "user".to_string(), content: text });
-                            h.push(ClaudeMessage { role: "assistant".to_string(), content: answer.clone() });
+                            h.push(DeepSeekMessage { role: "user".to_string(), content: text });
+                            h.push(DeepSeekMessage { role: "assistant".to_string(), content: answer.clone() });
                             if h.len() > 40 {
                                 let new_len = h.len() - 30;
                                 let new_h = h.split_off(new_len);
@@ -97,7 +96,7 @@ async fn main() {
                             bot.send_message(msg.chat.id, &answer).await?;
                         }
                     } else {
-                        bot.send_message(msg.chat.id, "❌ فشل قراءة رد Claude").await?;
+                        bot.send_message(msg.chat.id, "❌ فشل قراءة رد DeepSeek").await?;
                     }
                 }
                 Err(e) => {
