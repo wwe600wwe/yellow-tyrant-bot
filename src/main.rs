@@ -89,7 +89,11 @@ async fn main() {
                             let mut h = history.lock().await;
                             h.push(ClaudeMessage { role: "user".to_string(), content: text });
                             h.push(ClaudeMessage { role: "assistant".to_string(), content: answer.clone() });
-                            if h.len() > 40 { *h = h.split_off(h.len() - 30); }
+                            if h.len() > 40 {
+                                let new_len = h.len() - 30;
+                                let new_h = h.split_off(new_len);
+                                *h = new_h;
+                            }
                             bot.send_message(msg.chat.id, &answer).await?;
                         }
                     } else {
